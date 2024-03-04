@@ -1,7 +1,6 @@
 import express from "express";
 import bodyParser from "body-parser";
 import { GetNodeRegistryBody,Node} from "../registry/registry";
-import axios from "axios";  
 import { BASE_USER_PORT, BASE_ONION_ROUTER_PORT, REGISTRY_PORT } from "../config";
 import {
   createRandomSymmetricKey,
@@ -84,51 +83,50 @@ _user.post("/message", (req, res) => {
 });
 
 _user.post("/sendMessage", async (req, res) => {
-  // Extract the message
   const { message, destinationUserId } = req.body;
 
-  // Retrieve the list of available nodes in the network
-  const nodes = await fetch(`http://localhost:8080/getNodeRegistry`)//fetch the nodes list
-      .then((res) => res.json() as Promise<GetNodeRegistryBody>)
-      .then((body) => body.nodes);
+  // Obtenez la liste des nœuds disponibles dans le réseau
+  const response = await fetch(`http://localhost:${REGISTRY_PORT}/getNodeRegistry`);
+  const nodes = await fetch(`http://localhost:${REGISTRY_PORT}/getNodeRegistry`)
+      .then((res) => res.json())
+      .then((body: any) => body.nodes);
 
-  // Create a circuit of 3 nodes from the list of available nodes (randomly)
+  // Créez un circuit de 3 nœuds à partir de la liste des nœuds disponibles
   let circuit: Node[] = [];
-  while (circuit.length < 3) { //creates a 3 nodes circuit from the nodes list
+  while (circuit.length < 3) {
     const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
-    if (!circuit.includes(randomNode)) {
+    if (!circuit.find(node => node.nodeId === randomNode.nodeId)) {
       circuit.push(randomNode);
     }
   }
 
-  // Prepare the message to be sent
-  // The destination identifier is formatted with padding to reach a length of 10 characters.
-  let destination = `${BASE_USER_PORT + destinationUserId}`.padStart(10, "0");
+  // Préparez le message à envoyer
   let finalMessage = message;
-  // Generate a symmetric key for each node
-  for(const node of circuit) {
+  let destination = `${BASE_USER_PORT + destinationUserId}`.padStart(10, "0");
+
+  // Chiffrez le message pour chaque nœud dans le circuit
+  for (let i = circuit.length - 1; i >= 0; i--) {
+    const node = circuit[i];
     const symmetricKey = await createRandomSymmetricKey();
     const symmetricKey64 = await exportSymKey(symmetricKey);
-    const encryptedMessage = await symEncrypt(symmetricKey, `${destination + finalMessage}`);
-    destination = `${BASE_ONION_ROUTER_PORT + node.nodeId}`.padStart(10, '0');
+    finalMessage = await symEncrypt(symmetricKey, destination + finalMessage);
     const encryptedSymKey = await rsaEncrypt(symmetricKey64, node.pubKey);
-    finalMessage = encryptedSymKey + encryptedMessage;
+    finalMessage = encryptedSymKey + finalMessage;
+    destination = `${BASE_ONION_ROUTER_PORT + node.nodeId}`.padStart(10, '0');
   }
 
-  // Reverse the circuit to get the correct order of nodes
-  circuit.reverse();
-  lastCircuit = circuit;
+  lastCircuit = circuit.reverse();
   lastSentMessage = message;
-  await fetch(`http://localhost:${BASE_ONION_ROUTER_PORT + circuit[0].nodeId}/message`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ message: finalMessage }),
-  });
-  res.status(200).send("success");
-});
 
+  // Envoyez le message final au premier nœud du circuit
+  await fetch(`http://localhost:${destination}/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: finalMessage })
+  });
+
+  res.status(200).send("Message envoyé avec succès.");
+})
 
 
 
