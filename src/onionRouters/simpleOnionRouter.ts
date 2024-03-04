@@ -140,7 +140,6 @@ export async function simpleOnionRouter(nodeId: number) {
   
 
 
-
   return server;
 }
 
