@@ -11,6 +11,12 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return buff.buffer.slice(buff.byteOffset, buff.byteOffset + buff.byteLength);
 }
 
+
+// ################
+// ### RSA keys ###
+// ################
+
+
 // Generates a pair of private / public RSA keys
 
 type GenerateRsaKeyPair = {
@@ -33,7 +39,10 @@ export async function generateRsaKeyPair(): Promise<GenerateRsaKeyPair> {
 
 // Export a crypto public key to a base64 string format
 export async function exportPubKey(key: webcrypto.CryptoKey): Promise<string> {
+  // implement this function to return a base64 string version of a public key
+
   const exportedKey = await webcrypto.subtle.exportKey("spki", key);
+
   return arrayBufferToBase64(exportedKey);
 }
 
@@ -68,20 +77,22 @@ export async function importPubKey(
 
 // Import a base64 string private key to its native format
 export async function importPrvKey(
-    strKey: string
+  strKey: string
 ): Promise<webcrypto.CryptoKey> {
-  const keyBuffer = base64ToArrayBuffer(strKey);
-  const key = await webcrypto.subtle.importKey(
-      "pkcs8",
-      keyBuffer,
-      {
-        name: "RSA-OAEP",
-        hash: "SHA-256",
-      },
-      true,
-      ["decrypt"]
+  // implement this function to go back from the result of the exportPrvKey function to it's native crypto key object
+
+  const importedKey = await webcrypto.subtle.importKey(
+    "pkcs8",
+    base64ToArrayBuffer(strKey),
+    {
+      name: "RSA-OAEP",
+      hash: "SHA-256",
+    },
+    true,
+    ["decrypt"]
   );
-  return key;
+
+  return importedKey;
 }
 
 // Encrypt a message using an RSA public key
